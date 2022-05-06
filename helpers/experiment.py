@@ -66,21 +66,10 @@ class Experiment:
     
     ################### Getters for netcdf files as xarrays #####################
     @cached_property
-    def series(self):
-        result = xr.open_dataset(os.path.join(self.folder, 'ocean.stats.nc'), decode_times=False)
-        return result
-
-    @cached_property
     def param(self):
         result = xr.open_dataset(os.path.join(self.folder, 'ocean_geometry.nc')).rename(
                 {'latq': 'yq', 'lonq': 'xq', 'lath': 'yh', 'lonh': 'xh'} # change coordinates notation as in other files
             )
-        self.rename_coordinates(result)
-        return result
-
-    @cached_property
-    def ave(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'ave_*.nc'), decode_times=False, concat_dim='Time', parallel=True)
         self.rename_coordinates(result)
         return result
 
@@ -90,24 +79,6 @@ class Experiment:
         self.rename_coordinates(result)
         return result
     
-    @cached_property
-    def energy(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'energy_*.nc'), decode_times=False, concat_dim='Time', parallel=True)
-        self.rename_coordinates(result)
-        return result
-
-    @cached_property
-    def forcing(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'forcing_*.nc'), decode_times=False, concat_dim='Time', parallel=True)
-        self.rename_coordinates(result)
-        return result
-
-    @cached_property
-    def mom(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'mom_*.nc'), decode_times=False, concat_dim='Time', parallel=True)
-        self.rename_coordinates(result)
-        return result
-
     ############################### Main variables  #########################
     # These variables are suggested to be used in computations, i.e. coarsegraining,
     # spectra and so on. They are recommended to be registered
@@ -136,23 +107,6 @@ class Experiment:
     @cached_property
     def v(self):
         return self.prog.v
-
-    ########### Auxiliary variables. Not involved in computations ##########
-    @cached_property
-    def smagx(self):
-        return self.mom.diffu-self.mom.ZB2020u
-
-    @cached_property
-    def smagy(self):
-        return self.mom.diffv-self.mom.ZB2020v
-
-    @cached_property
-    def ZB2020u(self):
-        return self.mom.ZB2020u
-
-    @cached_property
-    def ZB2020v(self):
-        return self.mom.ZB2020v
 
     ############## Computational tools. Spectra, and so on #################
     @cached_property

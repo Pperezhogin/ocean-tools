@@ -136,43 +136,6 @@ class CollectionOfExperiments:
             return videoname
         return new_plot_function
 
-    def animate_celluloid(self, plot_function, nfig, ncol=3, ratio=1.15, Time=range(-50,0), videoname='my_movie.mp4'):
-        '''
-        Decorator for animation. 
-        Time - range of indices to plot
-        plot_function must have Time and ax argument,
-        and return list of "matplotlib.Artist" objects
-        '''
-        def new_plot_function(*args, **kwargs):
-            fig, ax = self.get_axes(nfig=nfig, ncol=ncol, ratio=ratio)
-            camera = Camera(fig)
-            n = 0
-            N = len(Time)
-            use_colorbar=True
-            p = None
-            for j in Time:
-                try:
-                    p_ = plot_function(*args, **kwargs, Time=j, ax=ax, use_colorbar=use_colorbar)
-                except:
-                    p_ = plot_function(*args, **kwargs, Time=j, ax=ax)
-                n += 1
-                print(f"{n} Images of {N} are plotted",end="\r")
-                use_colorbar=False
-                if p is not None:
-                    for pp in p:
-                        pp.remove()
-                    p = p_
-                camera.snap()
-
-            print("Converting list of figures to animation object...",end="\r")
-            ani = camera.animate(interval=100, blit=True, repeat_delay=0)
-            print("Saving animation as videofile...                 ",end="\r")
-            ani.save(videoname)
-            print("Done                                             ",end="\r")
-            plt.close()
-            return videoname
-        return new_plot_function
-
     #########################  snapshot plotters #########################
     # Basic pcolor viewer. Differs from specialized functions 
     # by lack of specialized colorbar
@@ -227,41 +190,6 @@ class CollectionOfExperiments:
         return self.pcolormesh('KE', exps, Time, zl, names, 0, vmax, 'inferno', 
             'Kinetic energy, $m^2/s^2$', ax, use_colorbar)
 
-    def plot_SGS(self, exp, Time = -1, ax=None, use_colorbar=True):
-        if ax is None:
-            fig, ax = self.get_axes(nfig=8, ncol=4)
-
-        smagx = self[exp].smagx
-        smagy = self[exp].smagy
-        ZB2020u = self[exp].ZB2020u
-        ZB2020v = self[exp].ZB2020v
-
-        def plotter(xarray, zl, num, title):
-            p = xarray.isel(zl=zl,Time=Time).plot.pcolormesh(
-                cmap='seismic', vmin=-1e-7, vmax=1e-7, ax=ax[num], add_colorbar=False
-            )
-            ax[num].set_title(title)
-            ax[num].set_ylabel('')
-            return [p]
-
-        p = []
-        p += plotter(smagx, zl=0, num=0, title='$du/dt$, bilap Smag')
-        p += plotter(smagy, zl=0, num=1, title='$dv/dt$, bilap Smag')
-        p += plotter(ZB2020u, zl=0, num=2, title='$du/dt$, ZB2020')
-        p += plotter(ZB2020v, zl=0, num=3, title='$dv/dt$, ZB2020')
-
-        p += plotter(smagx, zl=1, num=4, title='$du/dt$, bilap Smag')
-        p += plotter(smagy, zl=1, num=5, title='$dv/dt$, bilap Smag')
-        p += plotter(ZB2020u, zl=1, num=6, title='$du/dt$, ZB2020')
-        p += plotter(ZB2020v, zl=1, num=7, title='$dv/dt$, ZB2020')
-
-        ax[0].set_ylabel('Upper layer', fontsize=20)
-        ax[4].set_ylabel('Lower layer', fontsize=20)
-
-        if use_colorbar:
-            plt.colorbar(p[0], ax=ax, label='$m/s^2$')
-        return p
-
     def plot_KE_spectrum(self, exps, Time=-1, ax=None):
         
         p = []
@@ -276,14 +204,14 @@ class CollectionOfExperiments:
             ax[0].set_xlabel(r'wavenumber, $k [m^{-1}]$')
             ax[0].set_ylabel(r'Energy spectrum, $E(k) [m^3/s^2]$')
             ax[0].set_title('Upper layer')
-            #ax[0].legend(prop={'size': 14})
+            ax[0].legend(prop={'size': 14})
             ax[0].grid(which='both',linestyle=':')
 
             p.extend(ax[1].loglog(k, KE_lower, label=self.names[exp]))
             ax[1].set_xlabel(r'wavenumber, $k [m^{-1}]$')
             ax[1].set_ylabel(r'Energy spectrum, $E(k) [m^3/s^2]$')
             ax[1].set_title('Lower layer')
-            #ax[1].legend(prop={'size': 14})
+            ax[1].legend(prop={'size': 14})
             ax[1].grid(which='both',linestyle=':')
 
         k = [5e-5, 1e-3]
