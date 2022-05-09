@@ -111,6 +111,32 @@ def remesh(input, target):
     
     return result
 
+def compute_isotropic_KE(u, v, dx, dy, window, Lat, Lon, nfactor, truncate):
+    '''
+    u, v, dx, dy - arrays defind in the center of the cells
+    '''
+    # Select desired Lon-Lat square
+    u = select_LatLon(u,Lat,Lon)
+    v = select_LatLon(v,Lat,Lon)
+    dx = select_LatLon(dx,Lat,Lon).mean().values
+    dy = select_LatLon(dy,Lat,Lon).mean().values
+
+    # define equiv-space grid
+    x = dx*np.arange(len(u.xh))
+    y = dy*np.arange(len(u.yh))
+    u['xh'] = x
+    u['yh'] = y
+    v['xh'] = x
+    v['yh'] = y
+
+    Eu = xrft.isotropic_power_spectrum(u, dim=('xh','yh'), detrend='linear', window=window, window_correction=True, nfactor=nfactor, truncate=truncate)
+    Ev = xrft.isotropic_power_spectrum(v, dim=('xh','yh'), detrend='linear', window=window, window_correction=True, nfactor=nfactor, truncate=truncate)
+
+    E = (Eu+Ev) / 2 # because power spectrum is twice the energy
+    E['freq_r'] = E['freq_r']*2*np.pi
+    
+    return E
+
 def compute_2dfft(array, dx, dy, window='hann', Lat=(30,50), Lon=(0,22)):
     '''
     Takes xarray, which must have 2 horizontal coordinates.
