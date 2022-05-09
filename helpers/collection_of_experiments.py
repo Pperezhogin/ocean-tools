@@ -39,26 +39,34 @@ class CollectionOfExperiments:
 
         return CollectionOfExperiments(exps, experiments_dict, names_dict)
 
+    def compute_statistics(self, exps=None, recompute=False):
+        if exps is None:
+            exps = self.exps
+        for exp in exps:
+            if recompute:
+                self[exp].recompute = True
+            for key in ['KE_spectrum', 'KE']:
+                self[exp].__getattribute__(key)
+            self[exp].recompute = False
+
     def remesh(self, input, target, exp=None, name=None, compute=False):
         '''
         input  - key of experiment to coarsegrain
         target - key of experiment we want to take coordinates from
         '''
-        result = self[input].remesh(self[target], compute) # call experiment method
 
         if exp is None:
             exp = input+'_'+target
         if name is None:
             name = input+' coarsegrained to '+target
 
+        result = self[input].remesh(self[target], exp, compute) # call experiment method
+
         print('Experiment '+input+' coarsegrained to '+target+
             ' is created. Its identificator='+exp)
         self.exps.append(exp)
         self.experiments[exp] = result
         self.names[exp] = name
-    
-    def print_exps(self):
-        print(*self.exps)
     
     @classmethod
     def init_folder(cls, common_folder, exps=None, exps_names=None, additional_subfolder=''):
@@ -81,7 +89,7 @@ class CollectionOfExperiments:
         names_dict = {}
         for i in range(len(exps)):
             folder = os.path.join(common_folder,exps[i],additional_subfolder)
-            experiments_dict[exps[i]] = Experiment(folder)
+            experiments_dict[exps[i]] = Experiment(folder, exps[i])
             names_dict[exps[i]] = exps_names[i] # convert array to dictionary
 
         return cls(exps, experiments_dict, names_dict)      

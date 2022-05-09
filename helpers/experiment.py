@@ -3,12 +3,16 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import remesh, compute_2dfft
-# Imitates xarray. All variables are
-# returned as @property. Compared to xarray, allows
-# additional computational tools and initialized instantly (within ms)
+from helpers.computational_tools import remesh, compute_2dfft, rename_coordinates
+from helpers.netcdf_cache import netcdf_property
+
 class Experiment:
-    def __init__(self, folder):
+    '''
+    Imitates xarray. All variables are
+    returned as @property. Compared to xarray, allows
+    additional computational tools and initialized instantly (within ms)
+    '''
+    def __init__(self, folder, key=''):
         '''
         Initializes with folder containing all netcdf files corresponding
         to a given experiment.
@@ -19,19 +23,20 @@ class Experiment:
         registered with @cached_property decorator (for convenience)
         '''
         self.folder = folder
+        self.key = key # for storage of statistics
+        self.recompute = False # default value of recomputing of cached on disk properties
 
-        if folder != 'This is detached experiment':
-            if not os.path.exists(os.path.join(self.folder, 'ocean_geometry.nc')):
-                print('Error, cannot find files in folder'+self.folder)
-    
-    def remesh(self, target, compute=False):
+        if not os.path.exists(os.path.join(self.folder, 'ocean_geometry.nc')):
+            print('Error, cannot find files in folder'+self.folder)
+
+    def remesh(self, target, key, compute=False):
         '''
         Returns object "experiment", where "Main variables"
         are coarsegrained according to resolution of the target experiment
         '''
 
         # The coarsegrained experiment is no longer attached to the folder
-        result = Experiment(folder='This is detached experiment')
+        result = Experiment(folder=self.folder, key=key)
 
         # Coarsegrain "Main variables" explicitly
         for key in ['RV', 'RV_f', 'PV', 'e', 'u', 'v']:
@@ -43,26 +48,6 @@ class Experiment:
         result.param = target.param # copy coordinates from target experiment
 
         return result        
-
-    ########################## Service functions #############################
-    def rename_coordinates(self, xr_dataset):
-        '''
-        in-place change of coordinate names to Longitude and Latitude.
-        For convenience of plotting with xarray.plot()
-        '''
-        for key in ['xq', 'xh']:
-            try:
-                xr_dataset[key].attrs['long_name'] = 'Longitude'
-                xr_dataset[key].attrs['units'] = ''
-            except:
-                pass
-
-        for key in ['yq', 'yh']:
-            try:
-                xr_dataset[key].attrs['long_name'] = 'Latitude'
-                xr_dataset[key].attrs['units'] = ''
-            except:
-                pass
     
     ################### Getters for netcdf files as xarrays #####################
     @cached_property
@@ -70,13 +55,13 @@ class Experiment:
         result = xr.open_dataset(os.path.join(self.folder, 'ocean_geometry.nc')).rename(
                 {'latq': 'yq', 'lonq': 'xq', 'lath': 'yh', 'lonh': 'xh'} # change coordinates notation as in other files
             )
-        self.rename_coordinates(result)
+        rename_coordinates(result)
         return result
 
     @cached_property
     def prog(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'prog_*.nc'), decode_times=False, concat_dim='Time', parallel=True)
-        self.rename_coordinates(result)
+        result = xr.open_mfdataset(os.path.join(self.folder, 'prog_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 1, 'zl': 1})
+        rename_coordinates(result)
         return result
     
     ############################### Main variables  #########################
@@ -109,18 +94,18 @@ class Experiment:
         return self.prog.v
 
     ############## Computational tools. Spectra, and so on #################
-    @cached_property
+    @netcdf_property
     def KE(self):
         return 0.5 * (remesh(self.u**2, self.e) + remesh(self.v**2, self.e))
 
-    @cached_property
+    @property
     def fft_u(self):
-        return compute_2dfft(remesh(self.u, self.e), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
+        return compute_2dfft(remesh(self.u, self.e).chunk({'Time':1,'zl':1}), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
 
-    @cached_property
+    @property
     def fft_v(self):
-        return compute_2dfft(remesh(self.v, self.e), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
+        return compute_2dfft(remesh(self.v, self.e).chunk({'Time':1,'zl':1}), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
 
-    @cached_property
+    @netcdf_property
     def KE_spectrum(self):
         return xrft.isotropize((np.abs(self.fft_u)**2+np.abs(self.fft_v)**2)/2, fftdim=('kx','ky'), nfactor=2, truncate=True)

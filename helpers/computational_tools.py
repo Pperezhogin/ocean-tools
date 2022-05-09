@@ -3,6 +3,8 @@ import math
 import xrft
 import numpy.fft as npfft
 from scipy import signal
+import xarray as xr
+import os
 
 def x_coord(array):
     '''
@@ -25,6 +27,25 @@ def y_coord(array):
     except:
         coord = array.yh
     return coord
+
+def rename_coordinates(xr_dataset):
+    '''
+    in-place change of coordinate names to Longitude and Latitude.
+    For convenience of plotting with xarray.plot()
+    '''
+    for key in ['xq', 'xh']:
+        try:
+            xr_dataset[key].attrs['long_name'] = 'Longitude'
+            xr_dataset[key].attrs['units'] = ''
+        except:
+            pass
+
+    for key in ['yq', 'yh']:
+        try:
+            xr_dataset[key].attrs['long_name'] = 'Latitude'
+            xr_dataset[key].attrs['units'] = ''
+        except:
+            pass
 
 def select_LatLon(array, Lat, Lon):
     '''
