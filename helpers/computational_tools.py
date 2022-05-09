@@ -152,3 +152,54 @@ def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detr
     #print(f'Max wavenumber={E.freq_r.max().values} [1/m], \n x-grid-scale={np.pi/dx} [1/m], \n y-grid-scale={np.pi/dy} [1/m]')
     
     return E
+
+def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, window_correction):
+    '''
+    Returns KE spectrum with normalization:
+    mean(u^2+v^2)/2 = int(E(nu),dnu),
+    where nu - time frequency in 1/day (not "angle frequency")
+    E(nu) - energy density, i.e. m^2/s^2 * day
+    '''
+
+    # Select range of Lat-Lon-time
+    u = select_LatLon(u,Lat,Lon).sel(Time=slice(*Time))
+    v = select_LatLon(v,Lat,Lon).sel(Time=slice(*Time))
+
+    # Let integer division by nchunks
+    nTime = len(u.Time)
+    chunk_length = math.floor(nTime / nchunks)
+    nTime = chunk_length * nchunks
+
+    # Divide time series to time chunks
+    u = u.isel(Time=slice(nTime)).chunk({'Time': chunk_length})
+    v = v.isel(Time=slice(nTime)).chunk({'Time': chunk_length})
+
+    # compute spatial-average time spectrum
+    ps_u = xrft.power_spectrum(u, dim='Time', window=window, window_correction=window_correction, detrend=detrend, chunks_to_segments=True).mean(dim=('xq','yh'))
+    ps_v = xrft.power_spectrum(v, dim='Time', window=window, window_correction=window_correction, detrend=detrend, chunks_to_segments=True).mean(dim=('xh','yq'))
+
+    ps = ps_u + ps_v
+
+    # in case of nchunks > 1
+    try:
+        ps = ps.mean(dim='Time_segment')
+    except:
+        pass
+
+    # Convert 2-sided power spectrum to one-sided
+    freq = ps.freq_Time
+    ps = ps.sel(freq_Time=slice(0,freq.max()))
+    freq = ps.freq_Time
+    ps[freq==0] = ps[freq==0] / 2
+
+    # Drop zero frequency for better plotting
+    ps = ps[ps.freq_Time>0]
+
+    ############## normalization tester #############
+    #print('Energy balance:')
+    #print('mean(u^2+v^2)/2=', ((u**2)/2).mean(dim=('Time', 'xq', 'yh')).values + ((v**2)/2).mean(dim=('Time', 'xh', 'yq')).values)
+    #print('int(E(nu),dnu)=', (ps.sum(dim='freq_Time') * ps.freq_Time.spacing).values)
+    #spacing = np.diff(u.Time).mean()
+    #print(f'Max frequency={ps.freq_Time.max().values} [1/day], \n Max inverse period={0.5/spacing} [1/day]')
+
+    return ps

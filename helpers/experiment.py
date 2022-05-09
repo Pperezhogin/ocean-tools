@@ -3,7 +3,7 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import remesh, compute_isotropic_KE, rename_coordinates
+from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_KE_time_spectrum
 from helpers.netcdf_cache import netcdf_property
 
 class Experiment:
@@ -39,7 +39,7 @@ class Experiment:
         result = Experiment(folder=self.folder, key=key)
 
         # Coarsegrain "Main variables" explicitly
-        for key in ['RV', 'RV_f', 'PV', 'e', 'u', 'v']:
+        for key in ['RV', 'RV_f', 'PV', 'e', 'u', 'v', 'ua', 'va']:
             if compute:
                 setattr(result, key, remesh(self.__getattribute__(key),target.__getattribute__(key)).compute())
             else:
@@ -61,6 +61,12 @@ class Experiment:
     @cached_property
     def prog(self):
         result = xr.open_mfdataset(os.path.join(self.folder, 'prog_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 5, 'zl': 2})
+        rename_coordinates(result)
+        return result
+
+    @cached_property
+    def ave(self):
+        result = xr.open_mfdataset(os.path.join(self.folder, 'ave_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 5, 'zl': 2})
         rename_coordinates(result)
         return result
     
@@ -93,6 +99,14 @@ class Experiment:
     def v(self):
         return self.prog.v
 
+    @cached_property
+    def ua(self):
+        return self.ave.u
+
+    @cached_property
+    def va(self):
+        return self.ave.v
+
     ############## Computational tools. Spectra, and so on #################
     @netcdf_property
     def KE(self):
@@ -104,6 +118,9 @@ class Experiment:
         dx = self.param.dxT
         dy = self.param.dyT
         return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
+
+    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=(3650, 7300), window='hann', nchunks=4, detrend='linear', window_correction=True):
+        return compute_KE_time_spectrum(self.ua, self.va, Lat, Lon, Time, window, nchunks, detrend, window_correction)
 
     @netcdf_property
     def KE_spectrum(self):
@@ -120,3 +137,7 @@ class Experiment:
     @netcdf_property
     def KE_spectrum_global_mean(self):
         return self.KE_spectrum_global.sel(Time=slice(3650,7300)).mean(dim='Time')
+
+    @netcdf_property
+    def KE_time_spectrum(self):
+        return self.compute_KE_time_spectrum(nchunks=2)

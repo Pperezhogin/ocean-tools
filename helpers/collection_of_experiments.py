@@ -46,7 +46,7 @@ class CollectionOfExperiments:
             if recompute:
                 self[exp].recompute = True
             for key in ['KE_spectrum', 'KE_spectrum_global', 
-            'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE']:
+            'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE_time_spectrum', 'KE']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 
@@ -199,7 +199,7 @@ class CollectionOfExperiments:
         return self.pcolormesh('KE', exps, Time, zl, names, 0, vmax, 'inferno', 
             'Kinetic energy, $m^2/s^2$', ax, use_colorbar)
 
-    def plot_KE_spectrum(self, exps, key='KE_spectrum_mean', Time=slice(121,243), ax=None):
+    def plot_KE_spectrum(self, exps, key='KE_spectrum_mean', ax=None):
         
         p = []
         for exp in exps:
@@ -236,5 +236,63 @@ class CollectionOfExperiments:
         E[1] = E[0] * (k[1]/k[0])**(-3)
         ax[1].loglog(k,E,'--k')
         ax[1].text(2e-4,1e+1,'$k^{-3}$')
+
+        return p
+
+    def plot_KE_time_spectrum(self, exps, ax=None, log=True):
+        from matplotlib.ticker import FormatStrFormatter
+        p = []
+        for exp in exps:
+            KE = self[exp].KE_time_spectrum
+            k = KE.freq_Time
+
+            KE_upper = KE.isel(zl=0)
+            KE_lower = KE.isel(zl=1)
+
+            p.extend(ax[0].loglog(k, KE_upper, label=self.names[exp]))
+            ax[0].set_xlabel(r'Cycles per day, $\nu [day^{-1}]$')
+            ax[0].set_ylabel(r'Energy spectrum, $E(\nu) [m^2/s^2 day]$')
+            ax[0].set_title('Upper layer')
+            ax[0].legend(prop={'size': 14},loc='lower left')
+            ax[0].grid(which='both',linestyle=':')
+
+            p.extend(ax[1].loglog(k, KE_lower, label=self.names[exp]))
+            ax[1].set_xlabel(r'Cycles per day, $\nu [day^{-1}]$')
+            ax[1].set_ylabel(r'Energy spectrum, $E(\nu) [m^2/s^2 day]$')
+            ax[1].set_title('Lower layer')
+            ax[1].legend(prop={'size': 14},loc='lower left')
+            ax[1].grid(which='both',linestyle=':')
+
+        if log:
+            ax[0].set_xlim([3e-4, 3e-2])
+            ax[0].set_ylim([5e-3, 2])
+            
+            ax[1].set_xlim([3e-4, 3e-2])
+            ax[1].set_ylim([1e-3, 2e-1])
+
+            nu = np.array([3e-3, 1e-2])
+            E = nu**(-1)
+            E = E/E[0]
+            ax[0].plot(nu,E,'k--')
+            ax[0].text(1e-2, 0.5, r'$\nu^{-1}$')
+
+
+        else:
+            ax[0].set_xscale('linear')
+            ax[0].set_yscale('linear')
+            ax[1].set_xscale('linear')
+            ax[1].set_yscale('linear')
+            ax[0].legend(loc='upper right')
+            ax[1].legend(loc='upper right')
+            ax[0].set_xticks([1/1000, 1/200, 1/100])
+            ax[1].set_xticks([1/1000, 1/200, 1/100])
+            
+            ax[0].set_xlim([1/5000, 1/60])
+            ax[0].set_ylim([-0.05, 1.1])
+            
+            ax[1].set_xlim([1/5000, 1/60])
+            ax[1].set_ylim([-0.005, 0.1])
+
+        
 
         return p
