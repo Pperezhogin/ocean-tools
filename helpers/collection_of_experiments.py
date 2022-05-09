@@ -45,7 +45,7 @@ class CollectionOfExperiments:
         for exp in exps:
             if recompute:
                 self[exp].recompute = True
-            for key in ['KE_spectrum', 'KE']:
+            for key in ['KE_spectrum', 'KE_spectrum_global', 'KE']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 
@@ -198,15 +198,15 @@ class CollectionOfExperiments:
         return self.pcolormesh('KE', exps, Time, zl, names, 0, vmax, 'inferno', 
             'Kinetic energy, $m^2/s^2$', ax, use_colorbar)
 
-    def plot_KE_spectrum(self, exps, Time=-1, ax=None):
+    def plot_KE_spectrum(self, exps, key='KE_spectrum', Time=slice(121,243), ax=None):
         
         p = []
         for exp in exps:
-            KE = self[exp].KE_spectrum
+            KE = self[exp].__getattribute__(key)
             k = KE.freq_r
 
-            KE_upper = KE.isel(zl=0,Time=Time)
-            KE_lower = KE.isel(zl=0,Time=Time)
+            KE_upper = KE.isel(zl=0,Time=Time).mean(dim='Time')
+            KE_lower = KE.isel(zl=1,Time=Time).mean(dim='Time')
 
             p.extend(ax[0].loglog(k, KE_upper, label=self.names[exp]))
             ax[0].set_xlabel(r'wavenumber, $k [m^{-1}]$')
@@ -227,9 +227,9 @@ class CollectionOfExperiments:
         E[1] = E[0] * (k[1]/k[0])**(-3)
         ax[0].loglog(k,E,'--k')
         ax[0].text(2e-4,1e+1,'$k^{-3}$')
-        ax[0].set_xlim([5e-6, 2e-3])
+        ax[0].set_xlim([2e-6, 2e-3])
         
-        ax[1].set_xlim([5e-6, 2e-3])
+        ax[1].set_xlim([2e-6, 2e-3])
         k = [5e-5, 1e-3]
         E = [3e+1, 0]
         E[1] = E[0] * (k[1]/k[0])**(-3)

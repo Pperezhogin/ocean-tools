@@ -111,53 +111,44 @@ def remesh(input, target):
     
     return result
 
-def compute_2dfft(array, dx, dy, window='hann', Lat=(30,50), Lon=(0,22)):
+def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction):
     '''
-    Takes xarray, which must have 2 horizontal coordinates.
-    dx, dy are coordinate arrays in metres (Not Lat-Lon). Are used to define mesh over wavenumbers.
-    Window: any of https://docs.scipy.org/doc/scipy/reference/signal.windows.html
-    Prefer: 'boxcar' - no window, or 'hann'
-    Lat-Lon are tuple describing range of coordinates for transform
-    Returns analog of rfftn (Real 2d Fourier Transfrom) with coordinates
-    (wavenumbers).
-
-    Note some changes to original algorithm (dataset.py) are due to the 
-    difference in isotropization function
+    u, v, dx, dy - arrays defined in the center of the cells
+    dx, dy - grid spacing in metres
+    Default options: window correction + linear detrending
+    Output:
+    mean(u^2+v^2)/2 = int(E(k),dk)
+    This equality is expected for detrend=None, window='boxcar'
+    freq_r - radial wavenumber, m^-1
+    window = 'boxcar' or 'hann'
     '''
-    x = x_coord(array)
-    y = y_coord(array)
+    # Select desired Lon-Lat square
+    u = select_LatLon(u,Lat,Lon)
+    v = select_LatLon(v,Lat,Lon)
 
-    # select subset of data
-    array_ = select_LatLon(array, Lat, Lon).fillna(0) # Remove NaNs
-    dx_ = select_LatLon(dx, Lat, Lon).mean().data
-    dy_ = select_LatLon(dy, Lat, Lon).mean().data
+    # mean grid spacing in metres
+    dx = select_LatLon(dx,Lat,Lon).mean().values
+    dy = select_LatLon(dy,Lat,Lon).mean().values
 
-    nx = len(array_.coords[x.name])
-    ny = len(array_.coords[y.name])
+    # define uniform grid
+    x = dx*np.arange(len(u.xh))
+    y = dy*np.arange(len(u.yh))
+    u['xh'] = x
+    u['yh'] = y
+    v['xh'] = x
+    v['yh'] = y
+
+    Eu = xrft.isotropic_power_spectrum(u, dim=('xh','yh'), window=window, nfactor=nfactor, truncate=truncate, detrend=detrend, window_correction=window_correction)
+    Ev = xrft.isotropic_power_spectrum(v, dim=('xh','yh'), window=window, nfactor=nfactor, truncate=truncate, detrend=detrend, window_correction=window_correction)
+
+    E = (Eu+Ev) / 2 # because power spectrum is twice the energy
+    E['freq_r'] = E['freq_r']*2*np.pi # because library returns frequencies, but not wavenumbers
     
-    # Analog of numpy.fft.rfftn along horizontal coordinates, with subtracting mean
-    # and applying window
-    arrayf = xrft.fft(array_, dim=(x.name,y.name), shift=False, window=window, detrend='constant')    
+    ############## normalization tester #############
+    #print('Energy balance:')
+    #print('mean(u^2+v^2)/2=', ((u**2+v**2)/2).mean(dim=('Time', 'xh', 'yh')).values)
+    #spacing = np.diff(E.freq_r).mean()
+    #print('int(E(k),dk)=', (E.sum(dim='freq_r').mean(dim='Time') * spacing).values)
+    #print(f'Max wavenumber={E.freq_r.max().values} [1/m], \n x-grid-scale={np.pi/dx} [1/m], \n y-grid-scale={np.pi/dy} [1/m]')
     
-    # select only positive frequencies in k_x wavenumber
-    x_freq = arrayf.coords['freq_'+x.name] # get x frequency coordinate
-    y_freq = arrayf.coords['freq_'+y.name] # get y frequency coordinate
-    #arrayf = arrayf.sel({x_freq.name: slice(0,x_freq.max())}) # original method, which removes half of frequencies
-    
-
-    # Define wavenumbers according to mean mesh step
-    arrayf = arrayf.rename({x_freq.name: 'kx', y_freq.name: 'ky'})
-    #kx = npfft.rfftfreq(nx,d=dx_/(2*np.pi)) # if half of requencies are removed
-    kx = npfft.fftfreq(nx,d=dx_/(2*np.pi))
-    ky = npfft.fftfreq(ny,d=dy_/(2*np.pi))
-    arrayf['kx'] = kx
-    arrayf['ky'] = ky
-
-    # renormalize according to the window size and number of mesh points
-    Wx = signal.windows.__getattribute__(window)(nx)
-    Wy = signal.windows.__getattribute__(window)(ny)
-    Wnd = np.outer(Wx, Wy)
-    Wnd_sqr = (Wnd**2).mean()
-    arrayf = arrayf / (nx*ny) / np.sqrt(Wnd_sqr) # original normalization as in dataset.py
-    arrayf /= np.sqrt(np.diff(kx)[0] * np.diff(ky)[0]) # see 25 Jan comment https://github.com/pyqg/pyqg/issues/275
-    return arrayf
+    return E

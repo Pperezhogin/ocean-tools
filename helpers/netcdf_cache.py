@@ -24,7 +24,8 @@ class netcdf_property:
         if instance is None: return self # see https://gist.github.com/asross/952fa456f8bcd07abf684cc515d49030
 
         funcname = self.function.__name__
-        filename = os.path.join(instance.folder, funcname+'_'+instance.key+'.nc')
+        #filename = os.path.join(instance.folder, funcname+'_'+instance.key+'.nc')
+        filename = os.path.join('/home/pp2681/ocean-tools/cache', funcname+'_'+instance.key+'.nc')
 
         if instance.recompute:
             try:

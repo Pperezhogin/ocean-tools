@@ -3,7 +3,7 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import remesh, compute_2dfft, rename_coordinates
+from helpers.computational_tools import remesh, compute_isotropic_KE, rename_coordinates
 from helpers.netcdf_cache import netcdf_property
 
 class Experiment:
@@ -60,7 +60,7 @@ class Experiment:
 
     @cached_property
     def prog(self):
-        result = xr.open_mfdataset(os.path.join(self.folder, 'prog_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 1, 'zl': 1})
+        result = xr.open_mfdataset(os.path.join(self.folder, 'prog_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 5, 'zl': 2})
         rename_coordinates(result)
         return result
     
@@ -98,14 +98,17 @@ class Experiment:
     def KE(self):
         return 0.5 * (remesh(self.u**2, self.e) + remesh(self.v**2, self.e))
 
-    @property
-    def fft_u(self):
-        return compute_2dfft(remesh(self.u, self.e).chunk({'Time':1,'zl':1}), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
-
-    @property
-    def fft_v(self):
-        return compute_2dfft(remesh(self.v, self.e).chunk({'Time':1,'zl':1}), self.param.dxT, self.param.dyT, Lat=(35,45), Lon=(5,15), window='hann')
+    def compute_KE_spectrum(self, Lat=(35,45), Lon=(5,15), window='hann', nfactor=2, truncate=True, detrend='linear', window_correction=True):
+        u = remesh(self.u, self.e)
+        v = remesh(self.v, self.e)
+        dx = self.param.dxT
+        dy = self.param.dyT
+        return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
 
     @netcdf_property
     def KE_spectrum(self):
-        return xrft.isotropize((np.abs(self.fft_u)**2+np.abs(self.fft_v)**2)/2, fftdim=('kx','ky'), nfactor=2, truncate=True)
+        return self.compute_KE_spectrum()
+
+    @netcdf_property
+    def KE_spectrum_global(self):
+        return self.compute_KE_spectrum(Lat=(30,50), Lon=(0,22))
