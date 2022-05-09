@@ -162,8 +162,8 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
     '''
 
     # Select range of Lat-Lon-time
-    u = select_LatLon(u,Lat,Lon).sel(Time=slice(*Time))
-    v = select_LatLon(v,Lat,Lon).sel(Time=slice(*Time))
+    u = select_LatLon(u,Lat,Lon).sel(Time=Time)
+    v = select_LatLon(v,Lat,Lon).sel(Time=Time)
 
     # Let integer division by nchunks
     nTime = len(u.Time)

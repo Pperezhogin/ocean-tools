@@ -45,8 +45,9 @@ class CollectionOfExperiments:
         for exp in exps:
             if recompute:
                 self[exp].recompute = True
-            for key in ['KE_spectrum', 'KE_spectrum_global', 
-            'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE_time_spectrum', 'KE']:
+            for key in ['KE', 'KE_spectrum', 'KE_spectrum_global', 
+            'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE_time_spectrum',
+            'ssh_mean', 'ssh_var', 'u_mean', 'v_mean', 'KE_series']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 

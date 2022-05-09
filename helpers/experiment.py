@@ -6,6 +6,8 @@ from functools import cached_property
 from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_KE_time_spectrum
 from helpers.netcdf_cache import netcdf_property
 
+Averaging_Time = slice(3650,7300)
+
 class Experiment:
     '''
     Imitates xarray. All variables are
@@ -39,7 +41,7 @@ class Experiment:
         result = Experiment(folder=self.folder, key=key)
 
         # Coarsegrain "Main variables" explicitly
-        for key in ['RV', 'RV_f', 'PV', 'e', 'u', 'v', 'ua', 'va']:
+        for key in ['RV', 'RV_f', 'PV', 'e', 'h', 'u', 'v', 'ua', 'va', 'ea']:
             if compute:
                 setattr(result, key, remesh(self.__getattribute__(key),target.__getattribute__(key)).compute())
             else:
@@ -50,6 +52,11 @@ class Experiment:
         return result        
     
     ################### Getters for netcdf files as xarrays #####################
+    @cached_property
+    def series(self):
+        result = xr.open_dataset(os.path.join(self.folder, 'ocean.stats.nc'), decode_times=False)
+        return result
+
     @cached_property
     def param(self):
         result = xr.open_dataset(os.path.join(self.folder, 'ocean_geometry.nc')).rename(
@@ -92,6 +99,10 @@ class Experiment:
         return self.prog.e
 
     @cached_property
+    def h(self):
+        return self.prog.h
+
+    @cached_property
     def u(self):
         return self.prog.u
 
@@ -107,7 +118,14 @@ class Experiment:
     def va(self):
         return self.ave.v
 
-    ############## Computational tools. Spectra, and so on #################
+    @cached_property
+    def ea(self):
+        return self.ave.e
+
+    ######################## Auxiliary variables #########################
+    
+
+    ############## Statistical tools. Spectra, and so on #################
     @netcdf_property
     def KE(self):
         return 0.5 * (remesh(self.u**2, self.e) + remesh(self.v**2, self.e))
@@ -119,7 +137,7 @@ class Experiment:
         dy = self.param.dyT
         return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
 
-    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=(3650, 7300), window='hann', nchunks=4, detrend='linear', window_correction=True):
+    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=Averaging_Time, window='hann', nchunks=4, detrend='linear', window_correction=True):
         return compute_KE_time_spectrum(self.ua, self.va, Lat, Lon, Time, window, nchunks, detrend, window_correction)
 
     @netcdf_property
@@ -132,12 +150,34 @@ class Experiment:
 
     @netcdf_property
     def KE_spectrum_mean(self):
-        return self.KE_spectrum.sel(Time=slice(3650,7300)).mean(dim='Time')
+        return self.KE_spectrum.sel(Time=Averaging_Time).mean(dim='Time')
 
     @netcdf_property
     def KE_spectrum_global_mean(self):
-        return self.KE_spectrum_global.sel(Time=slice(3650,7300)).mean(dim='Time')
+        return self.KE_spectrum_global.sel(Time=Averaging_Time).mean(dim='Time')
 
     @netcdf_property
     def KE_time_spectrum(self):
         return self.compute_KE_time_spectrum(nchunks=2)
+
+    @netcdf_property
+    def ssh_mean(self):
+        return self.ea.isel(zi=0).sel(Time=Averaging_Time).mean(dim='Time')
+
+    @netcdf_property
+    def ssh_var(self):
+        return self.ea.isel(zi=0).sel(Time=Averaging_Time).var(dim='Time')
+
+    @netcdf_property
+    def u_mean(self):
+        return self.ua.sel(Time=Averaging_Time).mean(dim='Time')
+
+    @netcdf_property
+    def v_mean(self):
+        return self.va.sel(Time=Averaging_Time).mean(dim='Time')
+
+    @netcdf_property
+    def KE_series(self):
+        KE = (remesh(self.u**2, self.h) + remesh(self.v**2, self.h)) * self.h / 2
+        Mass = self.h
+        return KE.mean(dim=('xh','yh')) / Mass.mean(dim=('xh','yh'))
