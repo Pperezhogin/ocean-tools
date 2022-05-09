@@ -37,14 +37,20 @@ class netcdf_property:
         # Try to open netcdf if exists
         if os.path.exists(filename):
             print(f'Reading file {filename}')
-            ncfile = xr.open_dataset(filename, decode_times=False, chunks={'Time': 1, 'zl': 1})
+            try:
+                ncfile = xr.open_dataset(filename, decode_times=False, chunks={'Time': 1, 'zl': 1})
+            except:
+                ncfile = xr.open_dataset(filename, decode_times=False) # for very small files
             print(f'Returning cached value of {funcname}')
             value = ncfile[funcname]
             ncfile.close() # to prevent out of memory
             return value
 
         print(f'Calculating value of {funcname}')
-        value = self.function(instance).chunk({'Time':1,'zl':1})
+        try:
+            value = self.function(instance).chunk({'Time':1,'zl':1})
+        except:
+            value = self.function(instance) # for very small objects
         
         # Create new dataset
         ncfile = xr.Dataset()

@@ -112,3 +112,11 @@ class Experiment:
     @netcdf_property
     def KE_spectrum_global(self):
         return self.compute_KE_spectrum(Lat=(30,50), Lon=(0,22))
+
+    @netcdf_property
+    def KE_spectrum_mean(self):
+        return self.KE_spectrum.sel(Time=slice(3650,7300)).mean(dim='Time')
+
+    @netcdf_property
+    def KE_spectrum_global_mean(self):
+        return self.KE_spectrum_global.sel(Time=slice(3650,7300)).mean(dim='Time')

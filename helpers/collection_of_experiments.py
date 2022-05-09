@@ -45,7 +45,8 @@ class CollectionOfExperiments:
         for exp in exps:
             if recompute:
                 self[exp].recompute = True
-            for key in ['KE_spectrum', 'KE_spectrum_global', 'KE']:
+            for key in ['KE_spectrum', 'KE_spectrum_global', 
+            'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 
@@ -198,15 +199,15 @@ class CollectionOfExperiments:
         return self.pcolormesh('KE', exps, Time, zl, names, 0, vmax, 'inferno', 
             'Kinetic energy, $m^2/s^2$', ax, use_colorbar)
 
-    def plot_KE_spectrum(self, exps, key='KE_spectrum', Time=slice(121,243), ax=None):
+    def plot_KE_spectrum(self, exps, key='KE_spectrum_mean', Time=slice(121,243), ax=None):
         
         p = []
         for exp in exps:
             KE = self[exp].__getattribute__(key)
             k = KE.freq_r
 
-            KE_upper = KE.isel(zl=0,Time=Time).mean(dim='Time')
-            KE_lower = KE.isel(zl=1,Time=Time).mean(dim='Time')
+            KE_upper = KE.isel(zl=0)
+            KE_lower = KE.isel(zl=1)
 
             p.extend(ax[0].loglog(k, KE_upper, label=self.names[exp]))
             ax[0].set_xlabel(r'wavenumber, $k [m^{-1}]$')
