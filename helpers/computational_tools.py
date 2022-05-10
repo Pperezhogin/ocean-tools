@@ -249,3 +249,33 @@ def compute_KE_time_spectrum(u_in, v_in, Lat=(35,45), Lon=(5,15), Time=slice(0,N
 
 def mass_average(KE, h, dx, dy):
     return (KE*h*dx*dy).mean(dim=('xh', 'yh')) / (h*dx*dy).mean(dim=('xh', 'yh'))
+
+def L1_error(input, target):
+    '''
+    Universal function for computation of NORMALIZED error.
+    target - "good simulation", it is used for normalization
+    Output is a scalar value.
+    error = target-input
+    result = mean(abs(error)) / mean(abs(target))
+    numerator and denominator could be vectors
+    only if variables have layers.
+    In this case list of two elements is returned
+    '''
+    # Check dimensions
+    if sorted(input.dims) != sorted(target.dims) or sorted(input.shape) != sorted(target.shape):
+        import sys
+        sys.exit(f'Dimensions disagree: {sorted(input.dims)} {sorted(target.dims)} {sorted(input.shape)} {sorted(target.shape)}')
+
+    error = target - input
+
+    average_dims = list(input.dims)
+    
+    # if layer is present, do not average over it at first stage!
+    
+    try:
+        average_dims.remove('zl')
+    except:
+        pass
+    result = np.abs(error).mean(dim=average_dims) / np.abs(target).mean(dim=average_dims)
+
+    return list(np.atleast_1d(result))
