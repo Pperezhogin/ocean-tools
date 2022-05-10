@@ -187,8 +187,7 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
         pass
 
     # Convert 2-sided power spectrum to one-sided
-    freq = ps.freq_Time
-    ps = ps.sel(freq_Time=slice(0,freq.max()))
+    ps = ps[ps.freq_Time>=0]
     freq = ps.freq_Time
     ps[freq==0] = ps[freq==0] / 2
 
@@ -200,6 +199,7 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
     #print('mean(u^2+v^2)/2=', ((u**2)/2).mean(dim=('Time', 'xq', 'yh')).values + ((v**2)/2).mean(dim=('Time', 'xh', 'yq')).values)
     #print('int(E(nu),dnu)=', (ps.sum(dim='freq_Time') * ps.freq_Time.spacing).values)
     #spacing = np.diff(u.Time).mean()
+    #print(f'Minimum period {2*spacing} [days]')
     #print(f'Max frequency={ps.freq_Time.max().values} [1/day], \n Max inverse period={0.5/spacing} [1/day]')
 
     return ps

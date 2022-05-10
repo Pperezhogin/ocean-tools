@@ -45,9 +45,10 @@ class CollectionOfExperiments:
         for exp in exps:
             if recompute:
                 self[exp].recompute = True
-            for key in ['KE', 'KE_spectrum', 'KE_spectrum_global', 
+            for key in ['KE_spectrum', 'KE_spectrum_global', 
             'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE_time_spectrum',
-            'ssh_mean', 'ssh_var', 'u_mean', 'v_mean', 'KE_series']:
+            'ssh_mean', 'ssh_var', 'u_mean', 'v_mean', 
+            'KE', 'KE_series', 'MKE', 'EKE', 'KE_mean']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 
@@ -252,14 +253,14 @@ class CollectionOfExperiments:
 
             p.extend(ax[0].loglog(k, KE_upper, label=self.names[exp]))
             ax[0].set_xlabel(r'Cycles per day, $\nu [day^{-1}]$')
-            ax[0].set_ylabel(r'Energy spectrum, $E(\nu) [m^2/s^2 day]$')
+            ax[0].set_ylabel(r'Energy spectrum, $E(\nu) [day \cdot m^2/s^2]$')
             ax[0].set_title('Upper layer')
             ax[0].legend(prop={'size': 14},loc='lower left')
             ax[0].grid(which='both',linestyle=':')
 
             p.extend(ax[1].loglog(k, KE_lower, label=self.names[exp]))
             ax[1].set_xlabel(r'Cycles per day, $\nu [day^{-1}]$')
-            ax[1].set_ylabel(r'Energy spectrum, $E(\nu) [m^2/s^2 day]$')
+            ax[1].set_ylabel(r'Energy spectrum, $E(\nu) [day \cdot m^2/s^2]$')
             ax[1].set_title('Lower layer')
             ax[1].legend(prop={'size': 14},loc='lower left')
             ax[1].grid(which='both',linestyle=':')
@@ -285,13 +286,13 @@ class CollectionOfExperiments:
             ax[1].set_yscale('linear')
             ax[0].legend(loc='upper right')
             ax[1].legend(loc='upper right')
-            ax[0].set_xticks([1/1000, 1/200, 1/100])
-            ax[1].set_xticks([1/1000, 1/200, 1/100])
-            
-            ax[0].set_xlim([1/5000, 1/60])
+            ax[0].set_xticks([0, 0.005, 0.01, 0.015])
+            ax[1].set_xticks([0, 0.005, 0.01, 0.015])
+
+            ax[0].set_xlim([0, 1/60]) # 1/60 - maximum frequency given by the data
             ax[0].set_ylim([-0.05, 1.1])
             
-            ax[1].set_xlim([1/5000, 1/60])
+            ax[1].set_xlim([0, 1/60])
             ax[1].set_ylim([-0.005, 0.1])
 
         
