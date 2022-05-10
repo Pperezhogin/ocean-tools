@@ -203,3 +203,6 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
     #print(f'Max frequency={ps.freq_Time.max().values} [1/day], \n Max inverse period={0.5/spacing} [1/day]')
 
     return ps
+
+def mass_average(KE, h, dx, dy):
+    return (KE*h*dx*dy).mean(dim=('xh', 'yh')) / (h*dx*dy).mean(dim=('xh', 'yh'))

@@ -3,7 +3,7 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_KE_time_spectrum
+from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_KE_time_spectrum, mass_average
 from helpers.netcdf_cache import netcdf_property
 
 Averaging_Time = slice(3650,7300)
@@ -41,7 +41,7 @@ class Experiment:
         result = Experiment(folder=self.folder, key=key)
 
         # Coarsegrain "Main variables" explicitly
-        for key in ['RV', 'RV_f', 'PV', 'e', 'h', 'u', 'v', 'ua', 'va', 'ea']:
+        for key in ['RV', 'RV_f', 'PV', 'e', 'h', 'u', 'v', 'ua', 'va', 'ea', 'ha']:
             if compute:
                 setattr(result, key, remesh(self.__getattribute__(key),target.__getattribute__(key)).compute())
             else:
@@ -128,6 +128,10 @@ class Experiment:
     def ea(self):
         return self.ave.e
 
+    @cached_property
+    def ha(self):
+        return self.ave.h
+
     ######################## Auxiliary variables #########################
     
 
@@ -180,6 +184,10 @@ class Experiment:
     def v_mean(self):
         return self.va.sel(Time=Averaging_Time).mean(dim='Time')
 
+    @netcdf_property
+    def h_mean(self):
+        return self.ha.sel(Time=Averaging_Time).mean(dim='Time')
+
     #-------------------------  KE, MKE, EKE  ---------------------------#        
     @netcdf_property
     def KE(self):
@@ -187,7 +195,7 @@ class Experiment:
 
     @netcdf_property
     def KE_series(self):
-        return (self.KE*self.h).mean(dim=('xh','yh')) / self.h.mean(dim=('xh','yh'))
+        return mass_average(self.KE, self.h, self.param.dxT, self.param.dyT)
 
     @netcdf_property
     def MKE(self):
@@ -209,5 +217,17 @@ class Experiment:
         return eke
 
     @netcdf_property
-    def KE_mean(self):
+    def KE_total(self):
         return self.MKE+self.EKE
+
+    @netcdf_property
+    def MKE_val(self):
+        return mass_average(self.MKE, self.h_mean, self.param.dxT, self.param.dyT)
+
+    @netcdf_property
+    def EKE_val(self):
+        return mass_average(self.EKE, self.h_mean, self.param.dxT, self.param.dyT)
+
+    @netcdf_property
+    def KE_total_val(self):
+        return self.MKE_val + self.EKE_val

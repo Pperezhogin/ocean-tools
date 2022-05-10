@@ -48,7 +48,8 @@ class CollectionOfExperiments:
             for key in ['KE_spectrum', 'KE_spectrum_global', 
             'KE_spectrum_mean', 'KE_spectrum_global_mean', 'KE_time_spectrum',
             'ssh_mean', 'ssh_var', 'u_mean', 'v_mean', 
-            'KE', 'KE_series', 'MKE', 'EKE', 'KE_mean']:
+            'KE', 'KE_series', 'MKE', 'EKE', 'KE_total', 
+            'MKE_val', 'EKE_val', 'KE_total_val']:
                 self[exp].__getattribute__(key)
             self[exp].recompute = False
 
