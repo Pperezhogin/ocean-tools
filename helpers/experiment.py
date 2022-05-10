@@ -72,6 +72,12 @@ class Experiment:
         return result
 
     @cached_property
+    def energy(self):
+        result = xr.open_mfdataset(os.path.join(self.folder, 'energy_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 5, 'zl': 2})
+        rename_coordinates(result)
+        return result
+
+    @cached_property
     def ave(self):
         result = xr.open_mfdataset(os.path.join(self.folder, 'ave_*.nc'), decode_times=False, concat_dim='Time', parallel=True, chunks={'Time': 5, 'zl': 2})
         rename_coordinates(result)
@@ -125,11 +131,8 @@ class Experiment:
     ######################## Auxiliary variables #########################
     
 
-    ############## Statistical tools. Spectra, and so on #################
-    @netcdf_property
-    def KE(self):
-        return 0.5 * (remesh(self.u**2, self.e) + remesh(self.v**2, self.e))
-
+    ########################  Statistical tools  #########################
+    #-----------------------  Spectral analysis  ------------------------#
     def compute_KE_spectrum(self, Lat=(35,45), Lon=(5,15), window='hann', nfactor=2, truncate=True, detrend='linear', window_correction=True):
         u = remesh(self.u, self.e)
         v = remesh(self.v, self.e)
@@ -160,6 +163,7 @@ class Experiment:
     def KE_time_spectrum(self):
         return self.compute_KE_time_spectrum(nchunks=2)
 
+    #-------------------  Mean flow and variability  --------------------#
     @netcdf_property
     def ssh_mean(self):
         return self.ea.isel(zi=0).sel(Time=Averaging_Time).mean(dim='Time')
@@ -176,8 +180,34 @@ class Experiment:
     def v_mean(self):
         return self.va.sel(Time=Averaging_Time).mean(dim='Time')
 
+    #-------------------------  KE, MKE, EKE  ---------------------------#        
+    @netcdf_property
+    def KE(self):
+        return 0.5 * (remesh(self.u**2, self.e) + remesh(self.v**2, self.e))
+
     @netcdf_property
     def KE_series(self):
-        KE = (remesh(self.u**2, self.h) + remesh(self.v**2, self.h)) * self.h / 2
-        Mass = self.h
-        return KE.mean(dim=('xh','yh')) / Mass.mean(dim=('xh','yh'))
+        return (self.KE*self.h).mean(dim=('xh','yh')) / self.h.mean(dim=('xh','yh'))
+
+    @netcdf_property
+    def MKE(self):
+        return 0.5 * (remesh(self.u_mean**2, self.e) + remesh(self.v_mean**2, self.e))  
+
+    @netcdf_property
+    def EKE(self):
+        eke = self.KE.sel(Time=Averaging_Time).mean(dim='Time') - self.MKE
+        eke = eke.where(eke>0).fillna(0) # 
+        return eke
+
+    @property
+    def EKE_old(self):
+        try:
+            eke = self.energy.KE.sel(Time=Averaging_Time).mean(dim='Time') - self.MKE
+            eke = eke.where(eke>0).fillna(0) #
+        except:
+            eke = self.EKE
+        return eke
+
+    @netcdf_property
+    def KE_mean(self):
+        return self.MKE+self.EKE
