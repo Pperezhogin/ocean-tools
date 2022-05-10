@@ -7,6 +7,11 @@ from helpers.computational_tools import rename_coordinates, remesh, compute_isot
 from helpers.netcdf_cache import netcdf_property
 
 Averaging_Time = slice(3650,7300)
+class main_property(cached_property):
+    '''
+    https://stackoverflow.com/questions/9541025/how-to-copy-a-python-class
+    '''
+    pass
 
 class Experiment:
     '''
@@ -41,7 +46,7 @@ class Experiment:
         result = Experiment(folder=self.folder, key=key)
 
         # Coarsegrain "Main variables" explicitly
-        for key in ['RV', 'RV_f', 'PV', 'e', 'h', 'u', 'v', 'ua', 'va', 'ea', 'ha']:
+        for key in Experiment.get_list_of_main_properties():
             if compute:
                 setattr(result, key, remesh(self.__getattribute__(key),target.__getattribute__(key)).compute())
             else:
@@ -49,7 +54,30 @@ class Experiment:
 
         result.param = target.param # copy coordinates from target experiment
 
-        return result        
+        return result
+
+    @classmethod
+    def get_list_of_netcdf_properties(cls):
+        '''
+        Allows to know what properties should be cached
+        https://stackoverflow.com/questions/27503965/list-property-decorated-methods-in-a-python-class
+        '''
+        result = []
+        for name, value in vars(cls).items():
+            if isinstance(value, netcdf_property):
+                result.append(name)
+        return result
+
+    @classmethod
+    def get_list_of_main_properties(cls):
+        '''
+        Allows to know what properties should be coarsegrained
+        '''
+        result = []
+        for name, value in vars(cls).items():
+            if isinstance(value, main_property):
+                result.append(name)
+        return result
     
     ################### Getters for netcdf files as xarrays #####################
     @cached_property
@@ -84,88 +112,56 @@ class Experiment:
         return result
     
     ############################### Main variables  #########################
-    # These variables are suggested to be used in computations, i.e. coarsegraining,
-    # spectra and so on. They are recommended to be registered
-    # The use of @property decorator allows not to load data at initialization
-    # They must be registered in "coarsegrain" method
-    @cached_property
-    def RV(self):
-        return self.prog.RV
-
-    @cached_property
-    def RV_f(self):
-        return self.RV / self.param.f
-
-    @cached_property
-    def PV(self):
-        return self.prog.PV
-
-    @cached_property
-    def e(self):
-        return self.prog.e
-
-    @cached_property
-    def h(self):
-        return self.prog.h
-
-    @cached_property
+    # These variables are used in statistical tools. They will be coarsegrained
+    # with remesh function
+    @main_property
     def u(self):
         return self.prog.u
 
-    @cached_property
+    @main_property
     def v(self):
         return self.prog.v
+    
+    @main_property
+    def e(self):
+        return self.prog.e
 
-    @cached_property
+    @main_property
+    def h(self):
+        return self.prog.h
+
+    @main_property
     def ua(self):
         return self.ave.u
 
-    @cached_property
+    @main_property
     def va(self):
         return self.ave.v
 
-    @cached_property
+    @main_property
     def ea(self):
         return self.ave.e
 
-    @cached_property
+    @main_property
     def ha(self):
         return self.ave.h
 
     ######################## Auxiliary variables #########################
-    
+    @property
+    def RV(self):
+        return self.prog.RV
+
+    @property
+    def RV_f(self):
+        return self.RV / self.param.f
+
+    @property
+    def PV(self):
+        return self.prog.PV
+
 
     ########################  Statistical tools  #########################
-    #-----------------------  Spectral analysis  ------------------------#
-    def compute_KE_spectrum(self, Lat=(35,45), Lon=(5,15), window='hann', nfactor=2, truncate=True, detrend='linear', window_correction=True):
-        u = remesh(self.u, self.e)
-        v = remesh(self.v, self.e)
-        dx = self.param.dxT
-        dy = self.param.dyT
-        return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
-
-    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=Averaging_Time, window='hann', nchunks=4, detrend='linear', window_correction=True):
-        return compute_KE_time_spectrum(self.ua, self.va, Lat, Lon, Time, window, nchunks, detrend, window_correction)
-
-    @netcdf_property
-    def KE_spectrum(self):
-        return self.compute_KE_spectrum()
-
-    @netcdf_property
-    def KE_spectrum_global(self):
-        return self.compute_KE_spectrum(Lat=(30,50), Lon=(0,22))
-
-    @netcdf_property
-    def KE_spectrum_mean(self):
-        return self.KE_spectrum.sel(Time=Averaging_Time).mean(dim='Time')
-
-    @netcdf_property
-    def KE_spectrum_global_mean(self):
-        return self.KE_spectrum_global.sel(Time=Averaging_Time).mean(dim='Time')
-
-    @netcdf_property
-    def KE_time_spectrum(self):
-        return self.compute_KE_time_spectrum(nchunks=2)
+    #################  Express through main properties ###################
 
     #-------------------  Mean flow and variability  --------------------#
     @netcdf_property
@@ -187,6 +183,52 @@ class Experiment:
     @netcdf_property
     def h_mean(self):
         return self.ha.sel(Time=Averaging_Time).mean(dim='Time')
+
+    #-----------------------  Spectral analysis  ------------------------#
+    def compute_KE_spectrum(self, u_in, v_in, Lat=(35,45), Lon=(5,15), window='hann', nfactor=2, truncate=True, detrend='linear', window_correction=True):
+        u = remesh(u_in, self.e)
+        v = remesh(v_in, self.e)
+        dx = self.param.dxT
+        dy = self.param.dyT
+        return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
+
+    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=Averaging_Time, window='hann', nchunks=4, detrend='linear', window_correction=True):
+        return compute_KE_time_spectrum(self.ua, self.va, Lat, Lon, Time, window, nchunks, detrend, window_correction)
+
+    @netcdf_property
+    def KE_spectrum_series(self):
+        return self.compute_KE_spectrum(self.u, self.v)
+
+    @netcdf_property
+    def KE_spectrum_global_series(self):
+        return self.compute_KE_spectrum(self.u, self.v, Lat=(30,50), Lon=(0,22))
+
+    @netcdf_property
+    def KE_spectrum(self):
+        return self.KE_spectrum_series.sel(Time=Averaging_Time).mean(dim='Time')
+
+    @netcdf_property
+    def KE_spectrum_global(self):
+        return self.KE_spectrum_global_series.sel(Time=Averaging_Time).mean(dim='Time')
+
+    @netcdf_property
+    def MKE_spectrum(self):
+        return self.compute_KE_spectrum(self.u_mean, self.v_mean)
+
+    @netcdf_property
+    def EKE_spectrum(self):
+        return self.KE_spectrum - self.MKE_spectrum
+
+    @property
+    def EKE_spectrum_direct(self):
+        # Difference with EKE_spectrum 0.7%
+        u_eddy = self.u.sel(Time=Averaging_Time) - self.u_mean
+        v_eddy = self.v.sel(Time=Averaging_Time) - self.v_mean
+        return self.compute_KE_spectrum(u_eddy, v_eddy).mean(dim='Time')
+
+    @netcdf_property
+    def KE_time_spectrum(self):
+        return self.compute_KE_time_spectrum(nchunks=2)
 
     #-------------------------  KE, MKE, EKE  ---------------------------#        
     @netcdf_property
