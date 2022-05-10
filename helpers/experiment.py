@@ -185,23 +185,14 @@ class Experiment:
         return self.ha.sel(Time=Averaging_Time).mean(dim='Time')
 
     #-----------------------  Spectral analysis  ------------------------#
-    def compute_KE_spectrum(self, u_in, v_in, Lat=(35,45), Lon=(5,15), window='hann', nfactor=2, truncate=True, detrend='linear', window_correction=True):
-        u = remesh(u_in, self.e)
-        v = remesh(v_in, self.e)
-        dx = self.param.dxT
-        dy = self.param.dyT
-        return compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction)
-
-    def compute_KE_time_spectrum(self, Lat=(35,45), Lon=(5,15), Time=Averaging_Time, window='hann', nchunks=4, detrend='linear', window_correction=True):
-        return compute_KE_time_spectrum(self.ua, self.va, Lat, Lon, Time, window, nchunks, detrend, window_correction)
-
     @netcdf_property
     def KE_spectrum_series(self):
-        return self.compute_KE_spectrum(self.u, self.v)
+        return compute_isotropic_KE(self.u, self.v, self.param.dxT, self.param.dyT)
 
     @netcdf_property
     def KE_spectrum_global_series(self):
-        return self.compute_KE_spectrum(self.u, self.v, Lat=(30,50), Lon=(0,22))
+        return compute_isotropic_KE(self.u, self.v, self.param.dxT, self.param.dyT, 
+            Lat=(30,50), Lon=(0,22))
 
     @netcdf_property
     def KE_spectrum(self):
@@ -213,7 +204,7 @@ class Experiment:
 
     @netcdf_property
     def MKE_spectrum(self):
-        return self.compute_KE_spectrum(self.u_mean, self.v_mean)
+        return compute_isotropic_KE(self.u_mean, self.v_mean, self.param.dxT, self.param.dyT)
 
     @netcdf_property
     def EKE_spectrum(self):
@@ -224,11 +215,11 @@ class Experiment:
         # Difference with EKE_spectrum 0.7%
         u_eddy = self.u.sel(Time=Averaging_Time) - self.u_mean
         v_eddy = self.v.sel(Time=Averaging_Time) - self.v_mean
-        return self.compute_KE_spectrum(u_eddy, v_eddy).mean(dim='Time')
+        return compute_isotropic_KE(u_eddy, v_eddy, self.param.dxT, self.param.dyT).mean(dim='Time')
 
     @netcdf_property
     def KE_time_spectrum(self):
-        return self.compute_KE_time_spectrum(nchunks=2)
+        return compute_KE_time_spectrum(self.ua, self.va, Time=Averaging_Time)
 
     #-------------------------  KE, MKE, EKE  ---------------------------#        
     @netcdf_property

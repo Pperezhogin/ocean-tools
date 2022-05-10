@@ -111,10 +111,11 @@ def remesh(input, target):
     
     return result
 
-def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detrend, window_correction):
+def compute_isotropic_KE(u_in, v_in, dx, dy, Lat=(35,45), Lon=(5,15), window='hann', 
+        nfactor=2, truncate=True, detrend='linear', window_correction=True):
     '''
-    u, v, dx, dy - arrays defined in the center of the cells
-    dx, dy - grid spacing in metres
+    u, v - "velocity" arrays defined on corresponding staggered grids
+    dx, dy - grid step arrays defined in the center of the cells
     Default options: window correction + linear detrending
     Output:
     mean(u^2+v^2)/2 = int(E(k),dk)
@@ -122,6 +123,10 @@ def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detr
     freq_r - radial wavenumber, m^-1
     window = 'boxcar' or 'hann'
     '''
+    # Interpolate to the center of the cells
+    u = remesh(u_in, dx)
+    v = remesh(v_in, dy)
+
     # Select desired Lon-Lat square
     u = select_LatLon(u,Lat,Lon)
     v = select_LatLon(v,Lat,Lon)
@@ -138,8 +143,10 @@ def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detr
     v['xh'] = x
     v['yh'] = y
 
-    Eu = xrft.isotropic_power_spectrum(u, dim=('xh','yh'), window=window, nfactor=nfactor, truncate=truncate, detrend=detrend, window_correction=window_correction)
-    Ev = xrft.isotropic_power_spectrum(v, dim=('xh','yh'), window=window, nfactor=nfactor, truncate=truncate, detrend=detrend, window_correction=window_correction)
+    Eu = xrft.isotropic_power_spectrum(u, dim=('xh','yh'), window=window, nfactor=nfactor, 
+        truncate=truncate, detrend=detrend, window_correction=window_correction)
+    Ev = xrft.isotropic_power_spectrum(v, dim=('xh','yh'), window=window, nfactor=nfactor, 
+        truncate=truncate, detrend=detrend, window_correction=window_correction)
 
     E = (Eu+Ev) / 2 # because power spectrum is twice the energy
     E['freq_r'] = E['freq_r']*2*np.pi # because library returns frequencies, but not wavenumbers
@@ -153,7 +160,8 @@ def compute_isotropic_KE(u, v, dx, dy, Lat, Lon, window, nfactor, truncate, detr
     
     return E
 
-def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, window_correction):
+def compute_KE_time_spectrum(u_in, v_in, Lat=(35,45), Lon=(5,15), Time=slice(0,None), window='hann', 
+        nchunks=2, detrend='linear', window_correction=True):
     '''
     Returns KE spectrum with normalization:
     mean(u^2+v^2)/2 = int(E(nu),dnu),
@@ -162,8 +170,8 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
     '''
 
     # Select range of Lat-Lon-time
-    u = select_LatLon(u,Lat,Lon).sel(Time=Time)
-    v = select_LatLon(v,Lat,Lon).sel(Time=Time)
+    u = select_LatLon(u_in,Lat,Lon).sel(Time=Time)
+    v = select_LatLon(v_in,Lat,Lon).sel(Time=Time)
 
     # Let integer division by nchunks
     nTime = len(u.Time)
@@ -175,8 +183,10 @@ def compute_KE_time_spectrum(u, v, Lat, Lon, Time, window, nchunks, detrend, win
     v = v.isel(Time=slice(nTime)).chunk({'Time': chunk_length})
 
     # compute spatial-average time spectrum
-    ps_u = xrft.power_spectrum(u, dim='Time', window=window, window_correction=window_correction, detrend=detrend, chunks_to_segments=True).mean(dim=('xq','yh'))
-    ps_v = xrft.power_spectrum(v, dim='Time', window=window, window_correction=window_correction, detrend=detrend, chunks_to_segments=True).mean(dim=('xh','yq'))
+    ps_u = xrft.power_spectrum(u, dim='Time', window=window, window_correction=window_correction, 
+        detrend=detrend, chunks_to_segments=True).mean(dim=('xq','yh'))
+    ps_v = xrft.power_spectrum(v, dim='Time', window=window, window_correction=window_correction, 
+        detrend=detrend, chunks_to_segments=True).mean(dim=('xh','yq'))
 
     ps = ps_u + ps_v
 
