@@ -3,7 +3,7 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_KE_time_spectrum, mass_average
+from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_isotropic_PE, compute_KE_time_spectrum, mass_average
 from helpers.netcdf_cache import netcdf_property
 
 Averaging_Time = slice(3650,7300)
@@ -92,6 +92,10 @@ class Experiment:
             )
         rename_coordinates(result)
         return result
+
+    @cached_property
+    def vert_grid(self):
+        return xr.open_dataset(os.path.join(self.folder, 'Vertical_coordinate.nc')).rename({'Layer': 'zl'})
 
     @cached_property
     def prog(self):
@@ -184,6 +188,10 @@ class Experiment:
     def h_mean(self):
         return self.ha.sel(Time=Averaging_Time).mean(dim='Time')
 
+    @netcdf_property
+    def e_mean(self):
+        return self.ea.sel(Time=Averaging_Time).mean(dim='Time')
+
     #-----------------------  Spectral analysis  ------------------------#
     @netcdf_property
     def KE_spectrum_series(self):
@@ -210,6 +218,14 @@ class Experiment:
     def EKE_spectrum(self):
         return self.KE_spectrum - self.MKE_spectrum
 
+    @netcdf_property
+    def PE_spectrum(self):
+        H0 = 1000. # 1000 is reference depth (see series.H0.isel(Interface=1))
+        hint = self.e.isel(zi=1)+H0 # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L655
+        mask = self.h.isel(zl=1)>1e-9 # mask of wet points. Boundaries have values 1e-10; https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L656
+        hint = hint * mask
+        return compute_isotropic_PE(hint, self.param.dxT, self.param.dyT).sel(Time=Averaging_Time).mean(dim='Time')
+
     @property
     def EKE_spectrum_direct(self):
         # Difference with EKE_spectrum 0.7%
@@ -228,6 +244,9 @@ class Experiment:
 
     @netcdf_property
     def KE_series(self):
+        # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L763
+        # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L501
+        # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L674
         return mass_average(self.KE, self.h, self.param.dxT, self.param.dyT)
 
     @netcdf_property
@@ -264,3 +283,61 @@ class Experiment:
     @netcdf_property
     def KE_total_val(self):
         return self.MKE_val + self.EKE_val
+
+    #-------------------------  PE, MPE, EPE  ---------------------------#
+    @netcdf_property
+    def PE_Joul_series(self):
+        # APE for internal interface, total value in Joules. Compare to seires.APE.isel(Interface=1)
+        H0 = 1000. # 1000 is reference depth (see series.H0.isel(Interface=1))
+        hint = self.e.isel(zi=1)+H0 # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L655
+        mask = self.h.isel(zl=1)>1e-9 # mask of wet points. Boundaries have values 1e-10; https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L656
+        return 0.5 * self.vert_grid.R.isel(zl=1)*self.vert_grid.g.isel(zl=1)*(hint**2 * mask * self.param.dxT * self.param.dyT).sum(dim=('xh','yh')) # https://github.com/NOAA-GFDL/MOM6/blob/dev/gfdl/src/diagnostics/MOM_sum_output.F90#L657
+
+    @netcdf_property
+    def PE(self):
+        '''
+        Avaliable Potential for internal interface devided by all constants, i.e. [m^2]
+        '''
+        H0 = 1000.
+        hint = self.e.isel(zi=1)+H0
+        mask = self.h.isel(zl=1)>1e-9
+        hint = hint * mask
+        return 0.5 * hint**2
+
+    @netcdf_property
+    def MPE(self):
+        '''
+        Avaliable Potential for internal interface of the mean flow [m^2]
+        '''
+        H0 = 1000.
+        hint = self.e_mean.isel(zi=1)+H0
+        mask = self.h_mean.isel(zl=1)>1e-9
+        hint = hint * mask
+        return 0.5 * hint**2
+
+    @netcdf_property
+    def EPE(self):
+        '''
+        Potential energy of the eddy fluctuations [m^2]
+        '''
+        epe = self.PE.sel(Time=Averaging_Time).mean(dim='Time') - self.MPE
+        epe = epe.where(epe>0).fillna(0)
+        return epe
+
+    @netcdf_property
+    def PE_total(self):
+        return self.MPE + self.EPE
+
+    @netcdf_property
+    def MPE_val(self):
+        mask = self.h_mean.isel(zl=1)>1e-9
+        return self.MPE.sum(dim=('xh','yh')) / mask.sum()
+
+    @netcdf_property
+    def EPE_val(self):
+        mask = self.h_mean.isel(zl=1)>1e-9
+        return self.EPE.sum(dim=('xh','yh')) / mask.sum()
+
+    @netcdf_property
+    def PE_total_val(self):
+        return self.MPE_val + self.EPE_val

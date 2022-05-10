@@ -160,6 +160,39 @@ def compute_isotropic_KE(u_in, v_in, dx, dy, Lat=(35,45), Lon=(5,15), window='ha
     
     return E
 
+def compute_isotropic_PE(h_int, dx, dy, Lat=(35,45), Lon=(5,15), window='hann', 
+        nfactor=2, truncate=True, detrend='linear', window_correction=True):
+    '''
+    hint - interface displacement in metres
+    dx, dy - grid step arrays defined in the center of the cells
+    Default options: window correction + linear detrending
+    Output:
+    mean(h^2)/2 = int(E(k),dk)
+    This equality is expected for detrend=None, window='boxcar'
+    freq_r - radial wavenumber, m^-1
+    window = 'boxcar' or 'hann'
+    '''
+    # Select desired Lon-Lat square
+    hint = select_LatLon(h_int,Lat,Lon)
+
+    # mean grid spacing in metres
+    dx = select_LatLon(dx,Lat,Lon).mean().values
+    dy = select_LatLon(dy,Lat,Lon).mean().values
+
+    # define uniform grid
+    x = dx*np.arange(len(hint.xh))
+    y = dy*np.arange(len(hint.yh))
+    hint['xh'] = x
+    hint['yh'] = y
+
+    E = xrft.isotropic_power_spectrum(hint, dim=('xh','yh'), window=window, nfactor=nfactor, 
+        truncate=truncate, detrend=detrend, window_correction=window_correction)
+
+    E = E / 2 # because power spectrum is twice the energy
+    E['freq_r'] = E['freq_r']*2*np.pi # because library returns frequencies, but not wavenumbers
+    
+    return E
+
 def compute_KE_time_spectrum(u_in, v_in, Lat=(35,45), Lon=(5,15), Time=slice(0,None), window='hann', 
         nchunks=2, detrend='linear', window_correction=True):
     '''
