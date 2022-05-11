@@ -272,10 +272,12 @@ def L1_error(input, target):
     
     # if layer is present, do not average over it at first stage!
     
-    try:
+    if 'zl' in average_dims:
         average_dims.remove('zl')
-    except:
-        pass
+
+    if 'zi' in average_dims:
+        average_dims.remove('zi')
+    
     result = np.abs(error).mean(dim=average_dims) / np.abs(target).mean(dim=average_dims)
 
     return list(np.atleast_1d(result))

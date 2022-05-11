@@ -30,23 +30,23 @@ class netcdf_property:
         if instance.recompute:
             try:
                 os.remove(filename)
-                print(f'Removing cache file {filename}')
+                #print(f'Removing cache file {filename}')
             except:
                 pass
 
         # Try to open netcdf if exists
         if os.path.exists(filename):
-            print(f'Reading file {filename}')
+            #print(f'Reading file {filename}')
             try:
                 ncfile = xr.open_dataset(filename, decode_times=False, chunks={'Time': 1, 'zl': 1})
             except:
                 ncfile = xr.open_dataset(filename, decode_times=False) # for very small files
-            print(f'Returning cached value of {funcname}')
+            #print(f'Returning cached value of {funcname}')
             value = ncfile[funcname]
             ncfile.close() # to prevent out of memory
             return value
 
-        print(f'Calculating value of {funcname}')
+        #print(f'Calculating value of {funcname}')
         try:
             value = self.function(instance).chunk({'Time':1,'zl':1})
         except:
@@ -57,7 +57,7 @@ class netcdf_property:
         
         # store on disk and close file
         ncfile[funcname] = value
-        print(f'Saving result to {filename}')
+        #print(f'Saving result to {filename}')
         ncfile.to_netcdf(filename)
         ncfile.close() # to prevent out of memory
 

@@ -3,7 +3,7 @@ import os
 import numpy as np
 import xrft
 from functools import cached_property
-from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_isotropic_PE, compute_KE_time_spectrum, mass_average
+from helpers.computational_tools import rename_coordinates, remesh, compute_isotropic_KE, compute_isotropic_PE, compute_KE_time_spectrum, mass_average, L1_error, select_LatLon
 from helpers.netcdf_cache import netcdf_property
 
 Averaging_Time = slice(3650,7300)
@@ -55,6 +55,29 @@ class Experiment:
         result.param = target.param # copy coordinates from target experiment
 
         return result
+
+    def L1_error(self, target_exp):
+        '''
+        Computes averaged over characteristics
+        normalized L1 error. Characteristics at each
+        layer are considered to be independent (i.e. they are averaged)
+
+        terget_exp - instance of Experiment (reference simulation)
+        '''
+        errors_list = []
+        errors_dict = {}
+
+        for feature in ['ssh_mean', 'u_mean', 'v_mean', 'KE_spectrum', 'KE_spectrum_global',
+            'MKE_spectrum', 'EKE_spectrum', 'PE_spectrum', 'KE_time_spectrum', 'MKE', 
+            'EKE', 'KE_total', 'MKE_val', 'EKE_val', 'KE_total_val', 'MPE', 'EPE', 
+            'PE_total', 'MPE_val', 'EPE_val', 'PE_total_val']:
+            input = self.__getattribute__(feature)
+            target = target_exp.__getattribute__(feature)
+            error = L1_error(input, target)
+            errors_list.extend(error)
+            errors_dict[feature] = error
+
+        return errors_list, errors_dict
 
     @classmethod
     def get_list_of_netcdf_properties(cls):
@@ -330,13 +353,15 @@ class Experiment:
 
     @netcdf_property
     def MPE_val(self):
-        mask = self.h_mean.isel(zl=1)>1e-9
-        return self.MPE.sum(dim=('xh','yh')) / mask.sum()
+        '''
+        Bad behaviour near the boundary!!!
+        [m^2]
+        '''
+        return select_LatLon(self.MPE,Lat=(35,45), Lon=(5,15)).mean(dim=('xh','yh'))
 
     @netcdf_property
     def EPE_val(self):
-        mask = self.h_mean.isel(zl=1)>1e-9
-        return self.EPE.sum(dim=('xh','yh')) / mask.sum()
+        return select_LatLon(self.EPE,Lat=(35,45), Lon=(5,15)).mean(dim=('xh','yh'))
 
     @netcdf_property
     def PE_total_val(self):
